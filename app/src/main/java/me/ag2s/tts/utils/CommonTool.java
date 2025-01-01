@@ -1,10 +1,13 @@
 package me.ag2s.tts.utils;
 
+import android.util.Log;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
@@ -12,6 +15,7 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+import me.ag2s.tts.services.Constants;
 import okio.BufferedSink;
 import okio.BufferedSource;
 import okio.ByteString;
@@ -21,6 +25,15 @@ public class CommonTool {
 
     static final Pattern NoVoicePattern = Pattern.compile("[\\s\\p{C}\\p{P}\\p{Z}\\p{S}]");
     static final SimpleDateFormat sdf = new SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss 'GMT'Z", Locale.ENGLISH);
+
+
+
+
+
+
+    public static String sha256Encode(String s){
+        return ByteString.of(s.getBytes(StandardCharsets.UTF_8)).sha256().hex();
+    }
 
 
 //    /**

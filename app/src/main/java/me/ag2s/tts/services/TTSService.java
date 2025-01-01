@@ -1,6 +1,10 @@
 package me.ag2s.tts.services;
 
 import static me.ag2s.tts.APP.getOkHttpClient;
+import static me.ag2s.tts.services.Constants.EDGE_BASE_URL;
+import static me.ag2s.tts.services.Constants.EDGE_MAIN_VERSION;
+import static me.ag2s.tts.services.Constants.EDGE_UA;
+import static me.ag2s.tts.services.Constants.TOKEN;
 import static me.ag2s.tts.utils.CommonTool.getTime;
 
 import android.app.Notification;
@@ -25,6 +29,7 @@ import android.speech.tts.TextToSpeechService;
 import android.speech.tts.Voice;
 import android.text.TextUtils;
 import android.util.Log;
+import android.webkit.WebSettings;
 
 import androidx.annotation.NonNull;
 
@@ -33,7 +38,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
@@ -41,9 +45,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 import me.ag2s.tts.APP;
-import me.ag2s.tts.BuildConfig;
 import me.ag2s.tts.R;
 import me.ag2s.tts.data.TtsActor;
 import me.ag2s.tts.data.TtsActorManger;
@@ -213,9 +217,29 @@ public class TTSService extends TextToSpeechService {
         }
     };
 
+
     public TTSService() {
         client = getOkHttpClient();
     }
+
+    private int realEdgeVersion = EDGE_MAIN_VERSION;
+
+    private void initEdgeVersion() {
+        try {
+            String ua = WebSettings.getDefaultUserAgent(this);
+            ua = ua.substring(ua.indexOf("Chrome/") + 7);
+            ua = ua.substring(0, ua.indexOf('.'));
+            int webViewVersion=Integer.parseInt(ua);
+
+            Log.e(TAG, String.valueOf(webViewVersion));
+            realEdgeVersion=Math.max(webViewVersion,EDGE_MAIN_VERSION);
+        }catch (Exception e){
+            Log.e(TAG,e.toString());
+        }
+
+
+    }
+
 
     private static final String ACTION_STOP_SERVICE = "action_stop_service";
 
@@ -321,6 +345,7 @@ public class TTSService extends TextToSpeechService {
         //TokenHolder.startToken();
         startForegroundService();
         reNewWakeLock();
+        initEdgeVersion();
 
 
     }
@@ -441,39 +466,41 @@ public class TTSService extends TextToSpeechService {
                 //Log.d(TAG, ByteString.of(trackFormat.getByteBuffer("csd-0")).hex());
 
 
-                Buffer buf = new Buffer();
-                // Magic Signature：固定头，占8个字节，为字符串OpusHead
-                buf.write("OpusHead".getBytes(StandardCharsets.UTF_8));
-                // Version：版本号，占1字节，固定为0x01
-                buf.writeByte(1);
-                // Channel Count：通道数，占1字节，根据音频流通道自行设置，如0x02
-                buf.writeByte(1);
-                // Pre-skip：回放的时候从解码器中丢弃的samples数量，占2字节，为小端模式，默认设置0x00,
-                buf.writeShortLe(0);
-                // Input Sample Rate (Hz)：音频流的Sample Rate，占4字节，为小端模式，根据实际情况自行设置
-                buf.writeIntLe(currentFormat.HZ);
-                //Output Gain：输出增益，占2字节，为小端模式，没有用到默认设置0x00, 0x00就好
-                buf.writeShortLe(0);
-                // Channel Mapping Family：通道映射系列，占1字节，默认设置0x00就好
-                buf.writeByte(0);
-                //Channel Mapping Table：可选参数，上面的Family默认设置0x00的时候可忽略
+                try (Buffer buf = new Buffer();) {
+                    // Magic Signature：固定头，占8个字节，为字符串OpusHead
+                    buf.write("OpusHead".getBytes(StandardCharsets.UTF_8));
+                    // Version：版本号，占1字节，固定为0x01
+                    buf.writeByte(1);
+                    // Channel Count：通道数，占1字节，根据音频流通道自行设置，如0x02
+                    buf.writeByte(1);
+                    // Pre-skip：回放的时候从解码器中丢弃的samples数量，占2字节，为小端模式，默认设置0x00,
+                    buf.writeShortLe(0);
+                    // Input Sample Rate (Hz)：音频流的Sample Rate，占4字节，为小端模式，根据实际情况自行设置
+                    buf.writeIntLe(currentFormat.HZ);
+                    //Output Gain：输出增益，占2字节，为小端模式，没有用到默认设置0x00, 0x00就好
+                    buf.writeShortLe(0);
+                    // Channel Mapping Family：通道映射系列，占1字节，默认设置0x00就好
+                    buf.writeByte(0);
+                    //Channel Mapping Table：可选参数，上面的Family默认设置0x00的时候可忽略
 
 
-                if (BuildConfig.DEBUG) {
-                    Log.e(TAG, trackFormat.getByteBuffer("csd-1").order(ByteOrder.nativeOrder()).getLong() + "");
-                    Log.e(TAG, trackFormat.getByteBuffer("csd-2").order(ByteOrder.nativeOrder()).getLong() + "");
-                    Log.e(TAG, ByteString.of(trackFormat.getByteBuffer("csd-2").array()).hex());
+//                    if (BuildConfig.DEBUG) {
+//                        Log.e(TAG, trackFormat.getByteBuffer("csd-1").order(ByteOrder.nativeOrder()).getLong() + "");
+//                        Log.e(TAG, trackFormat.getByteBuffer("csd-2").order(ByteOrder.nativeOrder()).getLong() + "");
+//                        Log.e(TAG, ByteString.of(trackFormat.getByteBuffer("csd-2").array()).hex());
+//                    }
+
+                    byte[] csd1bytes = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+                    byte[] csd2bytes = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+                    ByteString hd = buf.readByteString();
+                    ByteBuffer csd0 = ByteBuffer.wrap(hd.toByteArray());
+                    trackFormat.setByteBuffer("csd-0", csd0);
+                    ByteBuffer csd1 = ByteBuffer.wrap(csd1bytes);
+                    trackFormat.setByteBuffer("csd-1", csd1);
+                    ByteBuffer csd2 = ByteBuffer.wrap(csd2bytes);
+                    trackFormat.setByteBuffer("csd-2", csd2);
                 }
 
-                byte[] csd1bytes = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-                byte[] csd2bytes = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-                ByteString hd = buf.readByteString();
-                ByteBuffer csd0 = ByteBuffer.wrap(hd.toByteArray());
-                trackFormat.setByteBuffer("csd-0", csd0);
-                ByteBuffer csd1 = ByteBuffer.wrap(csd1bytes);
-                trackFormat.setByteBuffer("csd-1", csd1);
-                ByteBuffer csd2 = ByteBuffer.wrap(csd2bytes);
-                trackFormat.setByteBuffer("csd-2", csd2);
 
             }
 
@@ -571,6 +598,25 @@ public class TTSService extends TextToSpeechService {
     }
 
 
+    String buildEdgeUrl(int version) {
+        StringBuilder sb = new StringBuilder(EDGE_BASE_URL);
+        sb.append("?TrustedClientToken=").append(TOKEN);
+        sb.append("&Sec-MS-GEC=").append(SecTool.getSecMsGec());
+        sb.append("&Sec-MS-GEC-Version=1-").append(version).append(".0.0.0");
+        sb.append("&ConnectionId=").append(UUID.randomUUID().toString().toUpperCase());
+        return sb.toString();
+
+    }
+
+    String builderUserAgent(int version) {
+        if (version <= EDGE_MAIN_VERSION) {
+            return EDGE_UA;
+        } else {
+            return EDGE_UA.replace("" + EDGE_MAIN_VERSION, "" + version);
+        }
+    }
+
+
     /**
      * 获取或者创建WS
      * WebSocket
@@ -596,15 +642,16 @@ public class TTSService extends TextToSpeechService {
                 origin = "https://azure.microsoft.com";
                 isPreview = true;
             } else {
-                url = Constants.EDGE_URL;
+                url = buildEdgeUrl(realEdgeVersion);
                 isPreview = false;
                 origin = Constants.EDGE_ORIGIN;
             }
+            Log.e(TAG, url);
             Request request = new Request.Builder()
                     .url(url)
                     //.header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6")
                     //.header("Accept-Encoding", "gzip, deflate")
-                    .header("User-Agent", Constants.EDGE_UA)
+                    .header("User-Agent", builderUserAgent(realEdgeVersion))
                     .addHeader("Origin", origin)
                     .build();
             webSocketState = WebSocketState.CONNECTING;
@@ -671,6 +718,7 @@ public class TTSService extends TextToSpeechService {
             sendConfig(getOrCreateWs(), ttsConfig);
             oldFormatIndex = index;
         }
+        isPreview = false;
         SSML ssml = SSML.getInstance(request, name, ttsStyle, useDict, isPreview);
         Log.e(TAG, ssml.toString());
         //在Google Play图书之类应用会闪退，应该及时调用该方法

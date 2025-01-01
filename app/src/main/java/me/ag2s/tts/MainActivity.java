@@ -68,6 +68,7 @@ public class MainActivity extends Activity implements View.OnClickListener, Seek
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
+
         connectToText2Speech();
 
 
@@ -109,13 +110,13 @@ public class MainActivity extends Activity implements View.OnClickListener, Seek
 
         binding.switchUseDict.setChecked(APP.getBoolean(Constants.USE_DICT, false));
         binding.switchUseDict.setOnCheckedChangeListener((buttonView, isChecked) -> APP.putBoolean(Constants.USE_DICT, isChecked));
-
+        APP.putBoolean(USE_PREVIEW, false);
         showStyleView(APP.getBoolean(Constants.USE_PREVIEW, false));
-        binding.switchUsePreview.setChecked(APP.getBoolean(Constants.USE_PREVIEW, false));
-        binding.switchUsePreview.setOnCheckedChangeListener(((buttonView, isChecked) -> {
-            showStyleView(isChecked);
-            APP.putBoolean(USE_PREVIEW, isChecked);
-        }));
+//        binding.switchUsePreview.setChecked(APP.getBoolean(Constants.USE_PREVIEW, false));
+//        binding.switchUsePreview.setOnCheckedChangeListener(((buttonView, isChecked) -> {
+//            showStyleView(isChecked);
+//            APP.putBoolean(USE_PREVIEW, isChecked);
+//        }));
 
 
         TtsActorAdapter actorAdapter = new TtsActorAdapter(TtsActorManger.getInstance().getActors());
